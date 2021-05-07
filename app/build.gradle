@@ -4,14 +4,13 @@ plugins {
 }
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 30
     buildToolsVersion "30.0.3"
 
     defaultConfig {
         applicationId "com.tracmap.mapboxtestapp"
         minSdkVersion 24
-        //noinspection ExpiredTargetSdkVersion
-        targetSdkVersion 28
+        targetSdkVersion 30
         versionCode 1
         versionName "1.0"
 
