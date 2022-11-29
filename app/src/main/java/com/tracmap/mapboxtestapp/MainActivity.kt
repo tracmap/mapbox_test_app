@@ -1,17 +1,14 @@
 package com.tracmap.mapboxtestapp
 
-import android.app.Activity
 import android.os.Bundle
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import com.mapbox.geojson.Point.fromLngLat
 import com.mapbox.maps.EdgeInsets
 import com.mapbox.maps.MapView
 import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.Style
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import org.jetbrains.anko.db.insertOrThrow
 import java.util.*
 import kotlin.coroutines.CoroutineContext
@@ -24,11 +21,13 @@ private const val INITIAL_LONGITUDE = -5.0
 
 private val LOG_TAG = MainActivity::class.java.simpleName
 
-class MainActivity : Activity(), CoroutineScope {
+class MainActivity : AppCompatActivity(), CoroutineScope {
 
     override val coroutineContext: CoroutineContext = Dispatchers.Main
 
     private val mapInstance: MapboxMap by lazy { findViewById<MapView>(R.id.map_view).getMapboxMap() }
+
+    var running = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,9 +39,14 @@ class MainActivity : Activity(), CoroutineScope {
         simulatePanningMap()
     }
 
+    override fun onDestroy() {
+        running = false
+        super.onDestroy()
+    }
+
     private fun insertTestDataIntoDatabase() {
         launch(Dispatchers.IO) {
-            while (true) {
+            while (running) {
                 dbHelper.use {
                     insertOrThrow(TEST_TABLE_NAME, COLUMN_1 to UUID.randomUUID().toString())
                 }
@@ -60,7 +64,7 @@ class MainActivity : Activity(), CoroutineScope {
             val deltaLat = 0.005
             val deltaLon = 0.01
 
-            while (true) {
+            while (running) {
                 moveCamera(lat, lon)
                 lat += deltaLat
                 lon += deltaLon
