@@ -1,5 +1,6 @@
 package com.tracmap.mapboxtestapp
 
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
@@ -16,23 +17,23 @@ import kotlin.math.abs
 
 private const val DATABASE_INSERT_DELAY_MS = 20L
 
-private const val INITIAL_LATITUDE = 10.0
-private const val INITIAL_LONGITUDE = -5.0
-
 private val LOG_TAG = MainActivity::class.java.simpleName
 
 class MainActivity : AppCompatActivity(), CoroutineScope {
 
     override val coroutineContext: CoroutineContext = Dispatchers.Main
 
+    private lateinit var prefs: SharedPreferences
+
     private val mapInstance: MapboxMap by lazy { findViewById<MapView>(R.id.map_view).getMapboxMap() }
 
-    var running = true
+    private var running = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        prefs = applicationContext.getSharedPreferences("save", MODE_PRIVATE)
         insertTestDataIntoDatabase()
 
         mapInstance.loadStyleUri(Style.SATELLITE)
@@ -46,9 +47,21 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
     private fun insertTestDataIntoDatabase() {
         launch(Dispatchers.IO) {
+            // testing done by starting the app over and over, to detect db corruption:
+            // store expected rows in prefs and don't run if inconsistency found
+            var rows = prefs.getLong("rows", 0L)
             while (running) {
-                dbHelper.use {
-                    insertOrThrow(TEST_TABLE_NAME, COLUMN_1 to UUID.randomUUID().toString())
+                // query keeps the db open so not going to clash with okhttp/okio sockets
+                dbHelper.query {
+                    val row = insertOrThrow(TEST_TABLE_NAME, COLUMN_1 to UUID.randomUUID().toString())
+                    if (rows == 0L) assert(row == 1L) // first insert should be 1
+                    prefs.edit().apply() {
+                        putLong("rows", row)
+                        apply()
+                    }
+                    rows += 1
+                    assert(abs(row - rows) < 10) // a few ids are sometimes skipped after restart
+                    // TODO: also test closing db once while app is running and stopping the loop
                 }
                 delay(DATABASE_INSERT_DELAY_MS)
             }
@@ -59,10 +72,13 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
     private fun simulatePanningMap() {
         launch {
-            var lat = INITIAL_LATITUDE
-            var lon = INITIAL_LONGITUDE
-            val deltaLat = 0.005
-            val deltaLon = 0.01
+            // random start and direction added to prevent cache re-use on automated short runs
+            val lat0 = Math.random() * 45 - 22.5
+            val lon0 = Math.random() * 90 - 45
+            var lat = lat0
+            var lon = lon0
+            val deltaLat = 0.005 * if (Math.random() > 0.5) -1 else 1
+            val deltaLon = 0.01 * if (Math.random() > 0.5) -1 else 1
 
             while (running) {
                 moveCamera(lat, lon)
@@ -72,8 +88,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
                 /** Reset screen if we are getting close to panning to an invalid lat, lon */
                 if (!isValidCoords(lon + 1, lat + 1)) {
                     Log.d(LOG_TAG, "Resetting coords")
-                    lat = INITIAL_LATITUDE
-                    lon = INITIAL_LONGITUDE
+                    lat = lat0
+                    lon = lon0
                 }
                 /** Delay for 16ms to simulate screen running at 60fps */
                 delay(16)

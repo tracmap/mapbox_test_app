@@ -23,6 +23,11 @@ class DatabaseHelper(context: Context) : ManagedSQLiteOpenHelper(context, "test_
         }
     }
 
+    // fixes socket clashes
+    fun <T> query(f: SQLiteDatabase.() -> T): T {
+        return writableDatabase.f()
+    }
+
     override fun onCreate(database: SQLiteDatabase?) {
         database!!.createTable(
             TEST_TABLE_NAME,
