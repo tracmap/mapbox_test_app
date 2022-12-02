@@ -50,7 +50,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             // testing done by starting the app over and over, to detect db corruption:
             // store expected rows in prefs and don't run if inconsistency found
             var rows = prefs.getLong("rows", 0L)
-            while (running) {
+            var inserts = 0
+            while (running && inserts <= 70) {
                 // query keeps the db open so not going to clash with okhttp/okio sockets
                 dbHelper.query {
                     val row = insertOrThrow(TEST_TABLE_NAME, COLUMN_1 to UUID.randomUUID().toString())
@@ -60,8 +61,15 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
                         apply()
                     }
                     rows += 1
+                    inserts += 1
                     assert(abs(row - rows) < 10) // a few ids are sometimes skipped after restart
-                    // TODO: also test closing db once while app is running and stopping the loop
+
+                    // also test closing db once while app is running and stopping the loop
+                    // android studio should run project every 6 seconds for test
+                    if (inserts == 70) {
+                        println("=== closing ===")
+                        if (Math.random() > 0.5) close()
+                    }
                 }
                 delay(DATABASE_INSERT_DELAY_MS)
             }
